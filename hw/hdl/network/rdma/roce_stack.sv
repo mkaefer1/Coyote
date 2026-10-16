@@ -79,7 +79,23 @@ module roce_stack (
     output logic                psn_drop_pkg_count_valid,
     output logic [31:0]         psn_drop_pkg_count_data,
     output logic                retrans_count_valid,
-    output logic [31:0]         retrans_count_data
+    output logic [31:0]         retrans_count_data,
+
+    // Congestion control
+    output logic                ecn_ce_rx_count_valid,
+    output logic [31:0]         ecn_ce_rx_count_data,
+    output logic                ecn_ect_rx_count_valid,
+    output logic [31:0]         ecn_ect_rx_count_data,
+    output logic                cnp_tx_count_valid,
+    output logic [31:0]         cnp_tx_count_data,
+    output logic                cnp_rx_count_valid,
+    output logic [31:0]         cnp_rx_count_data,
+    output logic                cnp_rx_drop_count_valid,
+    output logic [31:0]         cnp_rx_drop_count_data,
+    output logic                cc_signal_invalid_count_valid,
+    output logic [31:0]         cc_signal_invalid_count_data,
+    output logic                rate_denied_count_valid,
+    output logic [31:0]         rate_denied_count_data
 );
 
 //
@@ -453,7 +469,23 @@ rocev2_ip rocev2_inst(
     .regInvalidPsnDropCount(psn_drop_pkg_count_data),
     .regInvalidPsnDropCount_ap_vld(psn_drop_pkg_count_valid),
     .regRetransCount(retrans_count_data),
-    .regRetransCount_ap_vld(retrans_count_valid)
+    .regRetransCount_ap_vld(retrans_count_valid),
+
+    // CC
+    .regEcnCeRxCount(ecn_ce_rx_count_data),
+    .regEcnCeRxCount_ap_vld(ecn_ce_rx_count_valid),
+    .regEcnEctRxCount(ecn_ect_rx_count_data),
+    .regEcnEctRxCount_ap_vld(ecn_ect_rx_count_valid),
+    .regCnpTxCount(cnp_tx_count_data),
+    .regCnpTxCount_ap_vld(cnp_tx_count_valid),
+    .regCnpRxCount(cnp_rx_count_data),
+    .regCnpRxCount_ap_vld(cnp_rx_count_valid),
+    .regCnpRxDropCount(cnp_rx_drop_count_data),
+    .regCnpRxDropCount_ap_vld(cnp_rx_drop_count_valid),
+    .regCcSignalInvalidCount(cc_signal_invalid_count_data),
+    .regCcSignalInvalidCount_ap_vld(cc_signal_invalid_count_valid),
+    .regRateDeniedCount(rate_denied_count_data),
+    .regRateDeniedCount_ap_vld(rate_denied_count_valid)
     
 `else
 
@@ -529,7 +561,23 @@ rocev2_ip rocev2_inst(
     .regInvalidPsnDropCount_V(psn_drop_pkg_count_data),
     .regInvalidPsnDropCount_V_ap_vld(psn_drop_pkg_count_valid),
     .regRetransCount_V(retrans_count_data),
-    .regRetransCount_V_ap_vld(retrans_count_valid)
+    .regRetransCount_V_ap_vld(retrans_count_valid),
+
+    // CC
+    .regEcnCeRxCount_V(ecn_ce_rx_count_data),
+    .regEcnCeRxCount_V_ap_vld(ecn_ce_rx_count_valid),
+    .regEcnEctRxCount_V(ecn_ect_rx_count_data),
+    .regEcnEctRxCount_V_ap_vld(ecn_ect_rx_count_valid),
+    .regCnpTxCount_V(cnp_tx_count_data),
+    .regCnpTxCount_V_ap_vld(cnp_tx_count_valid),
+    .regCnpRxCount_V(cnp_rx_count_data),
+    .regCnpRxCount_V_ap_vld(cnp_rx_count_valid),
+    .regCnpRxDropCount_V(cnp_rx_drop_count_data),
+    .regCnpRxDropCount_V_ap_vld(cnp_rx_drop_count_valid),
+    .regCcSignalInvalidCount_V(cc_signal_invalid_count_data),
+    .regCcSignalInvalidCount_V_ap_vld(cc_signal_invalid_count_valid),
+    .regRateDeniedCount_V(rate_denied_count_data),
+    .regRateDeniedCount_V_ap_vld(rate_denied_count_valid)
 
 `endif
 );

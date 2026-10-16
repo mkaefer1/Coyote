@@ -226,6 +226,22 @@ logic       regInvalidPsnDropCount_valid;
 logic[31:0] regRetransCount;
 logic       regRetransCount_valid;
 
+// Congestion control
+logic[31:0] regEcnCeRxCount;
+logic       regEcnCeRxCount_valid;
+logic[31:0] regEcnEctRxCount;
+logic       regEcnEctRxCount_valid;
+logic[31:0] regCnpTxCount;
+logic       regCnpTxCount_valid;
+logic[31:0] regCnpRxCount;
+logic       regCnpRxCount_valid;
+logic[31:0] regCnpRxDropCount;
+logic       regCnpRxDropCount_valid;
+logic[31:0] regCcSignalInvalidCount;
+logic       regCcSignalInvalidCount_valid;
+logic[31:0] regRateDeniedCount;
+logic       regRateDeniedCount_valid;
+
 logic       session_count_valid;
 logic[15:0] session_count_data;
 
@@ -858,7 +874,23 @@ roce_stack inst_roce_stack (
     .psn_drop_pkg_count_valid(regInvalidPsnDropCount_valid),
     .psn_drop_pkg_count_data(regInvalidPsnDropCount),
     .retrans_count_valid(regRetransCount_valid),
-    .retrans_count_data(regRetransCount)
+    .retrans_count_data(regRetransCount),
+
+    // Congestion control
+    .ecn_ce_rx_count_valid(regEcnCeRxCount_valid),
+    .ecn_ce_rx_count_data(regEcnCeRxCount),
+    .ecn_ect_rx_count_valid(regEcnEctRxCount_valid),
+    .ecn_ect_rx_count_data(regEcnEctRxCount),
+    .cnp_tx_count_valid(regCnpTxCount_valid),
+    .cnp_tx_count_data(regCnpTxCount),
+    .cnp_rx_count_valid(regCnpRxCount_valid),
+    .cnp_rx_count_data(regCnpRxCount),
+    .cnp_rx_drop_count_valid(regCnpRxDropCount_valid),
+    .cnp_rx_drop_count_data(regCnpRxDropCount),
+    .cc_signal_invalid_count_valid(regCcSignalInvalidCount_valid),
+    .cc_signal_invalid_count_data(regCcSignalInvalidCount),
+    .rate_denied_count_valid(regRateDeniedCount_valid),
+    .rate_denied_count_data(regRateDeniedCount)
 );
 
 /*
@@ -1003,6 +1035,13 @@ tcp_stack tcp_stack_inst(
     assign net_stats_tmp[0].ibv_tx_pkg_counter = regIbvTxPkgCount;
     assign net_stats_tmp[0].roce_psn_drop_counter = regInvalidPsnDropCount;
     assign net_stats_tmp[0].roce_retrans_counter = regRetransCount;
+    assign net_stats_tmp[0].roce_ecn_ce_rx_counter = regEcnCeRxCount;
+    assign net_stats_tmp[0].roce_ecn_ect_rx_counter = regEcnEctRxCount;
+    assign net_stats_tmp[0].roce_cnp_tx_counter = regCnpTxCount;
+    assign net_stats_tmp[0].roce_cnp_rx_counter = regCnpRxCount;
+    assign net_stats_tmp[0].roce_cnp_rx_drop_counter = regCnpRxDropCount;
+    assign net_stats_tmp[0].roce_cc_signal_invalid_counter = regCcSignalInvalidCount;
+    assign net_stats_tmp[0].roce_rate_denied_counter = regRateDeniedCount;
     assign net_stats_tmp[0].tcp_session_counter = session_count_data;
     assign net_stats_tmp[0].axis_stream_down = axis_stream_down;
 

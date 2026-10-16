@@ -94,16 +94,27 @@ module network_slice (
     );
 
 `ifdef EN_STATS
-    // Stats
+    // Stats (net_stat_t is 1024 bits, sliced as two 512-bit halves)
     axis_register_slice_net_512 inst_reg_net_stats (
         .aclk(aclk),
         .aresetn(aresetn),
         .s_axis_tvalid(1'b1),
         .s_axis_tready(),
-        .s_axis_tdata(s_net_stats_n),  
+        .s_axis_tdata(s_net_stats_n[511:0]),  
         .m_axis_tvalid(),
         .m_axis_tready(1'b1),
-        .m_axis_tdata(m_net_stats_u)
+        .m_axis_tdata(m_net_stats_u[511:0])
+    );
+
+    axis_register_slice_net_512 inst_reg_net_stats_hi (
+        .aclk(aclk),
+        .aresetn(aresetn),
+        .s_axis_tvalid(1'b1),
+        .s_axis_tready(),
+        .s_axis_tdata(s_net_stats_n[1023:512]),  
+        .m_axis_tvalid(),
+        .m_axis_tready(1'b1),
+        .m_axis_tdata(m_net_stats_u[1023:512])
     );
 `endif
 

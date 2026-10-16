@@ -119,16 +119,27 @@ for(genvar i = 0; i < N_STAGES; i++) begin
     );
 
 `ifdef EN_STATS
-    // NET stats
+    // NET stats (net_stat_t is 1024 bits, sliced as two 512-bit halves)
     axis_register_slice_net_512 (
         .aclk(aclk),
         .aresetn(aresetn),
         .s_axis_tvalid(1'b1),
         .s_axis_tready(),
-        .s_axis_tdata(net_stats_s[i]),  
+        .s_axis_tdata(net_stats_s[i][511:0]),  
         .m_axis_tvalid(),
         .m_axis_tready(1'b1),
-        .m_axis_tdata(net_stats_s[i+1])
+        .m_axis_tdata(net_stats_s[i+1][511:0])
+    );
+
+    axis_register_slice_net_512 (
+        .aclk(aclk),
+        .aresetn(aresetn),
+        .s_axis_tvalid(1'b1),
+        .s_axis_tready(),
+        .s_axis_tdata(net_stats_s[i][1023:512]),  
+        .m_axis_tvalid(),
+        .m_axis_tready(1'b1),
+        .m_axis_tdata(net_stats_s[i+1][1023:512])
     );
 `endif
 

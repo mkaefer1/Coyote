@@ -98,7 +98,14 @@ ssize_t cyt_attr_nstats_show(struct kobject *kobj, struct kobj_attribute *attr, 
         "PSN drop cnt: %lld\n"
         "Retrans cnt: %lld\n"
         "TCP session cnt: %lld\n"
-        "STRM down: %lld\n\n", 
+        "STRM down: %lld\n"
+        "ECN ECT RX pkgs: %lld\n"
+        "ECN CE RX pkgs: %lld\n"
+        "CNP TX pkgs: %lld\n"
+        "CNP RX pkgs: %lld\n"
+        "CNP RX dropped: %lld\n"
+        "CC signal invalid: %lld\n"
+        "CC rate denied: %lld\n\n", 
         
         LOW_32 (bus_data->shell_cnfg->net_debug[0]),
         HIGH_32(bus_data->shell_cnfg->net_debug[0]),
@@ -115,7 +122,14 @@ ssize_t cyt_attr_nstats_show(struct kobject *kobj, struct kobj_attribute *attr, 
         LOW_32 (bus_data->shell_cnfg->net_debug[6]),
         HIGH_32(bus_data->shell_cnfg->net_debug[6]),
         LOW_32 (bus_data->shell_cnfg->net_debug[7]),
-        LOW_32 (bus_data->shell_cnfg->net_debug[8]) 
+        LOW_32 (bus_data->shell_cnfg->net_debug[8]),
+        LOW_32 (bus_data->shell_cnfg->net_debug[9]),
+        HIGH_32(bus_data->shell_cnfg->net_debug[9]),
+        LOW_32 (bus_data->shell_cnfg->net_debug[10]),
+        HIGH_32(bus_data->shell_cnfg->net_debug[10]),
+        LOW_32 (bus_data->shell_cnfg->net_debug[11]),
+        HIGH_32(bus_data->shell_cnfg->net_debug[11]),
+        LOW_32 (bus_data->shell_cnfg->net_debug[12])
     );
 }
 

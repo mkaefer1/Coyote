@@ -774,7 +774,15 @@ package lynxTypes;
         logic [31:0] roce_retrans_counter;
         logic [15:0] tcp_session_counter;
         logic axis_stream_down;
-        logic [512 - (14*32+16+1) - 1:0] rsrvd; 
+        // Congestion control (RoCE)
+        logic [31:0] roce_ecn_ce_rx_counter;          // CE-marked packets received
+        logic [31:0] roce_ecn_ect_rx_counter;         // ECN-capable (ECT or CE) packets received
+        logic [31:0] roce_cnp_tx_counter;             // CNPs sent
+        logic [31:0] roce_cnp_rx_counter;             // CNPs received
+        logic [31:0] roce_cnp_rx_drop_counter;        // CNPs received but not passed to the CC unit (FIFO full)
+        logic [31:0] roce_cc_signal_invalid_counter;  // CC signals dropped (QP not initialized / out of range)
+        logic [31:0] roce_rate_denied_counter;        // TX rate lookups answered "denied"
+        logic [1024 - (21*32+16+1) - 1:0] rsrvd; // 1024 bits: crossed/sliced as two 512-bit halves
     } net_stat_t;
 
     // -----------------------------------------------------------------

@@ -151,6 +151,10 @@ localparam integer NET_STAT_IBV_REG       = 101;
 localparam integer NET_STAT_DROP_REG      = 102;
 localparam integer NET_STAT_SESS_REG      = 103;
 localparam integer NET_STAT_DOWN_REG      = 104;
+localparam integer NET_STAT_ECN_REG       = 105;
+localparam integer NET_STAT_CNP_REG       = 106;
+localparam integer NET_STAT_CC_DROP_REG   = 107;
+localparam integer NET_STAT_CC_RATE_REG   = 108;
 
 // ---------------------------------------------------------------------------------------- 
 // Write process 
@@ -340,6 +344,14 @@ always_ff @(posedge aclk) begin
             axi_rdata[31:0] <= s_net_stats.tcp_session_counter; 
           NET_STAT_DOWN_REG: // rdma
             axi_rdata[0] <= s_net_stats.axis_stream_down;
+          NET_STAT_ECN_REG: // ecn: ECT and CE packets received
+            axi_rdata <= {s_net_stats.roce_ecn_ce_rx_counter, s_net_stats.roce_ecn_ect_rx_counter};
+          NET_STAT_CNP_REG: // cnp: sent and received
+            axi_rdata <= {s_net_stats.roce_cnp_rx_counter, s_net_stats.roce_cnp_tx_counter};
+          NET_STAT_CC_DROP_REG: // cc drops: CNPs not passed to the CC unit, invalid CC signals
+            axi_rdata <= {s_net_stats.roce_cc_signal_invalid_counter, s_net_stats.roce_cnp_rx_drop_counter};
+          NET_STAT_CC_RATE_REG: // cc rate: lookups answered "denied"
+            axi_rdata[31:0] <= s_net_stats.roce_rate_denied_counter;
   `endif
 
 `endif

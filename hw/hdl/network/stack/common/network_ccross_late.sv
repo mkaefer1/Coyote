@@ -111,7 +111,7 @@ if(ENABLED == 1) begin
     );
 
 `ifdef EN_STATS
-    // Stats
+    // Stats (net_stat_t is 1024 bits, crossed as two 512-bit halves)
     axis_clock_converter_net_512 inst_ccross_qp_interface (
         .s_axis_aresetn(nresetn),
         .m_axis_aresetn(aresetn),
@@ -119,10 +119,23 @@ if(ENABLED == 1) begin
         .m_axis_aclk(aclk),
         .s_axis_tvalid(1'b1),
         .s_axis_tready(),
-        .s_axis_tdata(s_net_stats_nclk),  
+        .s_axis_tdata(s_net_stats_nclk[511:0]),  
         .m_axis_tvalid(),
         .m_axis_tready(1'b1),
-        .m_axis_tdata(m_net_stats_aclk)
+        .m_axis_tdata(m_net_stats_aclk[511:0])
+    );
+
+    axis_clock_converter_net_512 inst_ccross_net_stats_hi (
+        .s_axis_aresetn(nresetn),
+        .m_axis_aresetn(aresetn),
+        .s_axis_aclk(nclk),
+        .m_axis_aclk(aclk),
+        .s_axis_tvalid(1'b1),
+        .s_axis_tready(),
+        .s_axis_tdata(s_net_stats_nclk[1023:512]),  
+        .m_axis_tvalid(),
+        .m_axis_tready(1'b1),
+        .m_axis_tdata(m_net_stats_aclk[1023:512])
     );
 `endif
 
@@ -170,16 +183,27 @@ else begin
     );
 
 `ifdef EN_STATS
-    // Stats
+    // Stats (net_stat_t is 1024 bits, sliced as two 512-bit halves)
     axis_register_slice_net_512 inst_reg_net_stats (
         .aclk(aclk),
         .aresetn(aresetn),
         .s_axis_tvalid(1'b1),
         .s_axis_tready(),
-        .s_axis_tdata(s_net_stats_nclk),  
+        .s_axis_tdata(s_net_stats_nclk[511:0]),  
         .m_axis_tvalid(),
         .m_axis_tready(1'b1),
-        .m_axis_tdata(m_net_stats_aclk)
+        .m_axis_tdata(m_net_stats_aclk[511:0])
+    );
+
+    axis_register_slice_net_512 inst_reg_net_stats_hi (
+        .aclk(aclk),
+        .aresetn(aresetn),
+        .s_axis_tvalid(1'b1),
+        .s_axis_tready(),
+        .s_axis_tdata(s_net_stats_nclk[1023:512]),  
+        .m_axis_tvalid(),
+        .m_axis_tready(1'b1),
+        .m_axis_tdata(m_net_stats_aclk[1023:512])
     );
 `endif
 

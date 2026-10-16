@@ -440,7 +440,7 @@ extern bool en_hmm;
 #define N_PR_WB_STAT_REGS 6             /* PR & WB host DMA channel statistics; implemented in pr_stats.sv */
 #define N_HDMA_STAT_REGS 12             /* Shell (streaming data & sync/offload) host DMA channel statistics; implemented in dma_stats.sv */
 #define N_HDMA_STAT_CH_REGS (N_HDMA_STAT_REGS / XDMA_MAX_NUM_CHANNELS)
-#define N_NET_STAT_REGS 10              /* Network statistics */
+#define N_NET_STAT_REGS 13              /* Network statistics */
 
 // Maximum number of user arguments for IOCTL calls passed from the user space
 #define MAX_USER_ARGS 32
