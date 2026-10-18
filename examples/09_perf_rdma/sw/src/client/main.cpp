@@ -26,6 +26,8 @@
 
 #include <iostream>
 #include <cstdlib>
+#include <chrono>
+#include <thread>
 
 // External library for easier parsing of CLI arguments by the executable
 #include <boost/program_options.hpp>
@@ -34,6 +36,7 @@
 #include <coyote/cBench.hpp>
 #include <coyote/cThread.hpp>
 #include <constants.hpp>
+#include <port_dispatcher.hpp>
 
 constexpr bool const IS_CLIENT = true;
 
@@ -114,9 +117,26 @@ int main(int argc, char *argv[])  {
      * Instead, given a cThread, the target RDMA buffer size and the remote server's TCP address,
      * One can use the function initRDMA, which will allocate the buffer and 
      * Exchange the necessary information with the server; the server calls the equivalent function but without the IP address
+     *
+     * The server can serve several clients in parallel (one Coyote thread and port per client), so the client first
+     * asks the server's port dispatcher which port to use. The server's worker for that port may not be listening yet
+     * right after start-up, so connection attempts are retried for a short while.
      */
+    uint16_t port = requestPort(server_ip);
+    std::cout << "Assigned port: " << port << std::endl << std::endl;
+
     coyote::cThread coyote_thread(DEFAULT_VFPGA_ID, getpid(), 0);
-    int *mem = (int *) coyote_thread.initRDMA(max_size, coyote::DEF_PORT, server_ip.c_str());
+    int *mem = nullptr;
+    for (unsigned int attempt = 0; ; attempt++) {
+        try {
+            mem = (int *) coyote_thread.initRDMA(max_size, port, server_ip.c_str());
+            break;
+        } catch (const std::runtime_error &e) {
+            bool not_listening_yet = std::string(e.what()).find("Could not connect") != std::string::npos;
+            if (!not_listening_yet || attempt >= CONNECT_RETRIES) { throw; }
+            std::this_thread::sleep_for(std::chrono::milliseconds(CONNECT_RETRY_DELAY_MS));
+        }
+    }
     if (!mem) { throw std::runtime_error("Could not allocate memory; exiting..."); }
 
     // Benchmark sweep of latency and throughput

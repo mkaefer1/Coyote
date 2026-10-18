@@ -34,6 +34,10 @@
 // Default vFPGA to assign cThreads to; for designs with one region (vFPGA) this is the only possible value
 #define DEFAULT_VFPGA_ID 0
 
+// Client: how often and how fast to retry connecting to the assigned server port (worker may not listen yet)
+#define CONNECT_RETRIES 50
+#define CONNECT_RETRY_DELAY_MS 100
+
 // Run-time parameters; users can change these from the CLI
 #define N_RUNS_DEFAULT              10
 #define MIN_TRANSFER_SIZE_DEFAULT   64

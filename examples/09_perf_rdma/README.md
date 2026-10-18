@@ -171,6 +171,12 @@ The following description helps to match the relevant command line parameters to
 - `[--min_size | -x] <uint32_t>` Minimum size of transferred buffer in the experiment. Default: 64 [B]
 - `[--max_size | -X] <uint32_t>` Maximum size of transferred buffer in the experiment. Default: 1048576 [B] ~ 1 [MB]
 - `[--runs | -r] <uint32_t>` Number of test runs, to obtain statistically significant results For latency-tests, `r` ping-pong exchanges will be executed. For throughput tests, `r` independent exchanges of 64 messages are executed. 
+- `[--clients | -n] <uint32_t>` *(server only)* Number of clients the server serves in parallel. Default: 1
+
+#### Multiple clients
+A server started with `-n N` serves `N` clients at the same time, each over its own queue pair. Internally, it runs one worker (one `cThread`) per client on the ports `18489 ... 18488 + N`, and a small port dispatcher on the well-known port `18488` (`coyote::DEF_PORT`). Each client first asks the dispatcher which port to use and then sets up its RDMA connection on that port, so the client command line stays the same. All clients and the server must use the same `-o`, `-x`, `-X` and `-r` values. The ports `18488 ... 18488 + N` on the server CPU must be reachable from the clients.
+
+This is useful to create congestion (*incast*): two clients on two different nodes performing WRITEs (`-o 1`) to the same server at the same time overload the switch port towards the server. Note that clients on the same node share that node's FPGA port, so they do not create incast.
 
 How to synthesize hardware, compile the examples and load the bitstream/driver is explained in the top-level example README in Coyote/examples/README.md. Please refer to that file for general Coyote guidance.
 

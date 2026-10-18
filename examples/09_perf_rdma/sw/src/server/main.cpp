@@ -26,6 +26,8 @@
 
 #include <iostream>
 #include <cstdlib>
+#include <thread>
+#include <vector>
 
 // External library for easier parsing of CLI arguments by the executable
 #include <boost/program_options.hpp>
@@ -33,6 +35,7 @@
 // Coyote-specific includes
 #include <coyote/cThread.hpp>
 #include <constants.hpp>
+#include <port_dispatcher.hpp>
 
 constexpr bool const IS_CLIENT = false;
 
@@ -74,44 +77,76 @@ void run_bench(
     }
 }
 
+// One worker per client: its own Coyote thread (and therefore its own QP) on its own port
+void serve_client(
+    unsigned int client_id, uint16_t port, unsigned int min_size, unsigned int max_size,
+    unsigned int n_runs, bool operation
+) {
+    try {
+        // Allocate Coyote thread and set-up RDMA connection, buffer etc.
+        // initRDMA is explained in more detail in client/main.cpp
+        coyote::cThread coyote_thread(DEFAULT_VFPGA_ID, getpid());
+        int *mem = (int *) coyote_thread.initRDMA(max_size, port);
+        if (!mem) { throw std::runtime_error("Could not allocate memory; exiting..."); }
+        std::cout << "Client " << client_id << " connected on port " << port << std::endl;
+
+        // Benchmark sweep; exactly like done in the client code
+        unsigned int curr_size = min_size;
+        while(curr_size <= max_size) {
+            coyote::rdmaSg sg = { .len = curr_size };
+            run_bench(coyote_thread, sg, mem, N_THROUGHPUT_REPS, n_runs, operation);
+            run_bench(coyote_thread, sg, mem, N_LATENCY_REPS, n_runs, operation);
+            curr_size *= 2;
+        }
+
+        // Final sync
+        coyote_thread.connSync(IS_CLIENT);
+        std::cout << "Client " << client_id << " finished" << std::endl;
+    } catch (const std::exception &e) {
+        std::cerr << "Client " << client_id << ": " << e.what() << std::endl;
+    }
+}
+
 int main(int argc, char *argv[])  {
     // CLI arguments
     bool operation;
-    unsigned int min_size, max_size, n_runs;
+    unsigned int min_size, max_size, n_runs, n_clients;
 
     boost::program_options::options_description runtime_options("Coyote Perf RDMA Options");
     runtime_options.add_options()
         ("operation,o", boost::program_options::value<bool>(&operation)->default_value(false), "Benchmark operation: READ(0) or WRITE(1)")
         ("runs,r", boost::program_options::value<unsigned int>(&n_runs)->default_value(N_RUNS_DEFAULT), "Number of times to repeat the test")
         ("min_size,x", boost::program_options::value<unsigned int>(&min_size)->default_value(MIN_TRANSFER_SIZE_DEFAULT), "Starting (minimum) transfer size")
-        ("max_size,X", boost::program_options::value<unsigned int>(&max_size)->default_value(MAX_TRANSFER_SIZE_DEFAULT), "Ending (maximum) transfer size");
+        ("max_size,X", boost::program_options::value<unsigned int>(&max_size)->default_value(MAX_TRANSFER_SIZE_DEFAULT), "Ending (maximum) transfer size")
+        ("clients,n", boost::program_options::value<unsigned int>(&n_clients)->default_value(1), "Number of clients served in parallel");
     boost::program_options::variables_map command_line_arguments;
     boost::program_options::store(boost::program_options::parse_command_line(argc, argv, runtime_options), command_line_arguments);
     boost::program_options::notify(command_line_arguments);
+
+    if (n_clients < 1 || n_clients >= coyote::MAX_NUM_CLIENTS) {
+        throw std::runtime_error("Number of clients must be between 1 and " + std::to_string(coyote::MAX_NUM_CLIENTS - 1));
+    }
 
     HEADER("CLI PARAMETERS:");
     std::cout << "Benchmark operation: " << (operation ? "WRITE" : "READ") << std::endl;
     std::cout << "Number of test runs: " << n_runs << std::endl;
     std::cout << "Starting transfer size: " << min_size << std::endl;
-    std::cout << "Ending transfer size: " << max_size << std::endl << std::endl;
+    std::cout << "Ending transfer size: " << max_size << std::endl;
+    std::cout << "Number of clients: " << n_clients << std::endl << std::endl;
 
-    // Allocate Coyothe threa and set-up RDMA connections, buffer etc.
-    // initRDMA is explained in more detail in client/main.cpp
-    coyote::cThread coyote_thread(DEFAULT_VFPGA_ID, getpid());
-    int *mem = (int *) coyote_thread.initRDMA(max_size, coyote::DEF_PORT);
-    if (!mem) { throw std::runtime_error("Could not allocate memory; exiting..."); }
-
-    // Benchmark sweep; exactly like done in the client code
     HEADER("RDMA BENCHMARK: SERVER");
-    unsigned int curr_size = min_size;
-    while(curr_size <= max_size) {
-        coyote::rdmaSg sg = { .len = curr_size };
-        run_bench(coyote_thread, sg, mem, N_THROUGHPUT_REPS, n_runs, operation);
-        run_bench(coyote_thread, sg, mem, N_LATENCY_REPS, n_runs, operation);
-        curr_size *= 2;
+
+    // Start one worker per client; each waits in initRDMA(...) for its client
+    std::vector<std::thread> workers;
+    for (unsigned int c = 0; c < n_clients; c++) {
+        workers.emplace_back(serve_client, c, (uint16_t) (DISPATCH_PORT + 1 + c), min_size, max_size, n_runs, operation);
     }
 
-    // Final sync and exit
-    coyote_thread.connSync(IS_CLIENT);
+    // Tell each incoming client which worker port to use, then wait for all benchmarks to finish
+    dispatchPorts(n_clients);
+    for (auto &worker : workers) {
+        worker.join();
+    }
+
     return EXIT_SUCCESS;
 }

@@ -61,3 +61,7 @@ target_link_libraries(${EXEC} PUBLIC Coyote)
 
 find_package(Boost REQUIRED COMPONENTS program_options)
 target_link_libraries(${EXEC} PUBLIC Boost::program_options)
+
+# std::thread (the server runs one worker per client)
+find_package(Threads REQUIRED)
+target_link_libraries(${EXEC} PUBLIC Threads::Threads)
