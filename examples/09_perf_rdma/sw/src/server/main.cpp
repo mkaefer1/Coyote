@@ -36,32 +36,43 @@
 #include <coyote/cThread.hpp>
 #include <constants.hpp>
 #include <port_dispatcher.hpp>
+#include <stall_watchdog.hpp>
 
 constexpr bool const IS_CLIENT = false;
 
-// Note, how the Coyote thread is passed by reference; to avoid creating a copy of 
-// the thread object which can lead to undefined behaviour and bugs. 
+// Note, how the Coyote thread is passed by reference; to avoid creating a copy of
+// the thread object which can lead to undefined behaviour and bugs.
 void run_bench(
-    coyote::cThread &coyote_thread, coyote::rdmaSg &sg, 
-    int *mem, uint transfers, uint n_runs, bool operation
+    coyote::cThread &coyote_thread, coyote::rdmaSg &sg,
+    int *mem, uint transfers, uint n_runs, bool operation, BenchProgress &progress
 ) {
     // When writing, the server asserts the written payload is correct (which the client sets)
     // When reading, the client asserts the read payload is correct (which the server sets)
     for (int i = 0; i < sg.len / sizeof(int); i++) {
-        mem[i] = operation ? 0 : i;        
+        mem[i] = operation ? 0 : i;
     }
 
+    progress.size = sg.len;
+    progress.transfers = transfers;
+    progress.n_runs = n_runs;
+
     for (int i = 0; i < n_runs; i++) {
-        // Clear previous completion flags and sync with client
-        coyote_thread.clearCompleted();
+        // Count completions relative to a baseline instead of clearing them: the shell's clear can race
+        // with another cThread's completion increment on the same vFPGA and corrupt or drop it
+        progress.startRun(coyote_thread, i, operation ? transfers : 0);
+        uint32_t base = progress.base_local_wr;
+        progress.phase = BenchPhase::SYNC;
         coyote_thread.connSync(IS_CLIENT);
 
         // For writes, wait until client has written the targer number of messages; then write them back
         if (operation) {
-            while (coyote_thread.checkCompleted(coyote::CoyoteOper::LOCAL_WRITE) != transfers) {}
+            progress.phase = BenchPhase::WAIT_LOCAL_WRITE;
+            while ((uint32_t) (coyote_thread.checkCompleted(coyote::CoyoteOper::LOCAL_WRITE) - base) != transfers) {}
 
+            progress.phase = BenchPhase::INVOKE;
             for (int i = 0; i < transfers; i++) {
                 coyote_thread.invoke(coyote::CoyoteOper::REMOTE_RDMA_WRITE, sg);
+                progress.addInvoked();
             }
         // For reads, the server is completely passive 
         } else { 
@@ -88,19 +99,26 @@ void serve_client(
         coyote::cThread coyote_thread(DEFAULT_VFPGA_ID, getpid());
         int *mem = (int *) coyote_thread.initRDMA(max_size, port);
         if (!mem) { throw std::runtime_error("Could not allocate memory; exiting..."); }
-        std::cout << "Client " << client_id << " connected on port " << port << std::endl;
+        std::cout << "Client " << client_id << " connected on port " << port << " (ctid " << coyote_thread.getCtid() << ")" << std::endl;
+
+        // Prints the state of this worker if it stops making progress; declared after the Coyote thread, so it stops first
+        BenchProgress progress;
+        // On a stall it also posts a marker write that triggers the debug ILAs on the server FPGA
+        StallWatchdog watchdog(coyote_thread, progress, "server, client " + std::to_string(client_id), true);
 
         // Benchmark sweep; exactly like done in the client code
         unsigned int curr_size = min_size;
         while(curr_size <= max_size) {
             coyote::rdmaSg sg = { .len = curr_size };
-            run_bench(coyote_thread, sg, mem, N_THROUGHPUT_REPS, n_runs, operation);
-            run_bench(coyote_thread, sg, mem, N_LATENCY_REPS, n_runs, operation);
+            run_bench(coyote_thread, sg, mem, N_THROUGHPUT_REPS, n_runs, operation, progress);
+            run_bench(coyote_thread, sg, mem, N_LATENCY_REPS, n_runs, operation, progress);
             curr_size *= 2;
         }
 
         // Final sync
+        progress.phase = BenchPhase::SYNC;
         coyote_thread.connSync(IS_CLIENT);
+        progress.phase = BenchPhase::DONE;
         std::cout << "Client " << client_id << " finished" << std::endl;
     } catch (const std::exception &e) {
         std::cerr << "Client " << client_id << ": " << e.what() << std::endl;

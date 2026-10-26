@@ -1183,6 +1183,81 @@ module design_user_wrapper_{{ c_reg }} (
     {% endif %}
 
 {% endif %}
-	
+
+{% if cnfg.flow == 'user' and cnfg.en_rdma %}
+    //
+    // DEBUG (temporary): ILA on the RDMA WRITE request path, to find where a host-posted RDMA WRITE is lost.
+    // Triggers: dbg_rdma_wr_bad_opcode / dbg_rdma_wr_bad_dest (a request the parser or dest mux would drop),
+    // or dbg_rdma_wr_marker (a command of length DBG_MARKER_LEN, posted by the example 9 watchdog on a stall).
+    // Capture condition: dbg_rdma_wr_pid_hs (only handshakes of pid DBG_PID are stored).
+    // The matching create_ip is in scripts/ip_inst/common_infrastructure.tcl.
+    //
+    localparam integer DBG_PID = 1;
+    localparam integer DBG_MARKER_LEN = 4044;
+
+    logic dbg_rdma_wr_hs;
+    logic [DEST_BITS-1:0] dbg_rdma_wr_dest;
+    logic dbg_rdma_wr_bad_opcode;
+    logic dbg_rdma_wr_bad_dest;
+    logic dbg_rdma_wr_marker;
+    logic dbg_rdma_wr_pid_hs;
+
+    assign dbg_rdma_wr_marker = host_sq_int.valid & host_sq_int.ready & (host_sq_int.data.req_2.len == DBG_MARKER_LEN);
+
+    assign dbg_rdma_wr_hs = remote_sq_wr_rdma.valid & remote_sq_wr_rdma.ready;
+    // Same selection as dest_dreq_mux
+    assign dbg_rdma_wr_dest = remote_sq_wr_rdma.data.req_1.actv ? remote_sq_wr_rdma.data.req_1.dest : remote_sq_wr_rdma.data.req_2.dest;
+    // dreq_rdma_parser_wr consumes and silently drops anything that is not RDMA_WRITE or RDMA_SEND
+    assign dbg_rdma_wr_bad_opcode = dbg_rdma_wr_hs & (remote_sq_wr_rdma.data.req_2.opcode != RDMA_WRITE) & (remote_sq_wr_rdma.data.req_2.opcode != RDMA_SEND);
+    assign dbg_rdma_wr_bad_dest = dbg_rdma_wr_hs & (dbg_rdma_wr_dest >= N_RDMA_AXI);
+
+    assign dbg_rdma_wr_pid_hs =
+        (host_sq_int.valid & host_sq_int.ready & (host_sq_int.data.req_2.pid == DBG_PID)) |
+        (host_remote_sq_wr.valid & host_remote_sq_wr.ready & (host_remote_sq_wr.data.req_2.pid == DBG_PID)) |
+        (host_local_sq_rd.valid & host_local_sq_rd.ready & (host_local_sq_rd.data.pid == DBG_PID)) |
+        (dbg_rdma_wr_hs & (remote_sq_wr_rdma.data.req_2.pid == DBG_PID)) |
+        (remote_cred_wr_rdma.valid & remote_cred_wr_rdma.ready & (remote_cred_wr_rdma.data.req_1.pid == DBG_PID)) |
+        (rdma_sq_int.valid & rdma_sq_int.ready & (rdma_sq_int.data.req_1.pid == DBG_PID)) |
+        dbg_rdma_wr_bad_opcode | dbg_rdma_wr_bad_dest;
+
+    ila_dbg_rdma_wr_path inst_ila_dbg_rdma_wr_path (
+        .clk(aclk),
+        // Host command, input of host_req_mux
+        .probe0(host_sq_int.valid),                                 // 1
+        .probe1(host_sq_int.ready),                                 // 1
+        .probe2(8'(host_sq_int.data.req_2.pid)),                    // 8
+        .probe3(8'(host_sq_int.data.req_2.opcode)),                 // 8
+        .probe4(32'(host_sq_int.data.req_2.len)),                   // 32
+        // Outputs of host_req_mux: RDMA request and local payload read
+        .probe5(host_remote_sq_wr.valid),                           // 1
+        .probe6(host_remote_sq_wr.ready),                           // 1
+        .probe7(host_local_sq_rd.valid),                            // 1
+        .probe8(host_local_sq_rd.ready),                            // 1
+        // Input of remote_credits_wr_rdma (dest mux -> queue -> parser -> credits)
+        .probe9(remote_sq_wr_rdma.valid),                           // 1
+        .probe10(remote_sq_wr_rdma.ready),                          // 1
+        .probe11(8'(remote_sq_wr_rdma.data.req_2.pid)),             // 8
+        .probe12(8'(remote_sq_wr_rdma.data.req_2.opcode)),          // 8
+        .probe13(8'(dbg_rdma_wr_dest)),                             // 8
+        .probe14(32'(remote_sq_wr_rdma.data.req_2.len)),            // 32
+        .probe15({remote_sq_wr_rdma.data.req_1.actv, remote_sq_wr_rdma.data.req_2.actv}), // 2
+        // Output of remote_credits_wr_rdma: one request per PMTU packet
+        .probe16(remote_cred_wr_rdma.valid),                        // 1
+        .probe17(remote_cred_wr_rdma.ready),                        // 1
+        .probe18(8'(remote_cred_wr_rdma.data.req_1.pid)),           // 8
+        .probe19(8'(remote_cred_wr_rdma.data.req_1.opcode)),        // 8
+        .probe20(32'(remote_cred_wr_rdma.data.req_1.len)),          // 32
+        .probe21(remote_cred_wr_rdma.data.req_1.last),              // 1
+        // Output to the shell (after the RDMA rd/wr arbiter)
+        .probe22(rdma_sq_int.valid),                                // 1
+        .probe23(rdma_sq_int.ready),                                // 1
+        // Triggers and capture condition
+        .probe24(dbg_rdma_wr_bad_opcode),                           // 1
+        .probe25(dbg_rdma_wr_bad_dest),                             // 1
+        .probe26(dbg_rdma_wr_pid_hs),                               // 1
+        .probe27(dbg_rdma_wr_marker)                                // 1
+    );
+{% endif %}
+
 endmodule
 	

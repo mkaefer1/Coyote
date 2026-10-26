@@ -37,25 +37,33 @@
 #include <coyote/cThread.hpp>
 #include <constants.hpp>
 #include <port_dispatcher.hpp>
+#include <stall_watchdog.hpp>
 
 constexpr bool const IS_CLIENT = true;
 
-// Note, how the Coyote thread is passed by reference; to avoid creating a copy of 
-// the thread object which can lead to undefined behaviour and bugs. 
+// Note, how the Coyote thread is passed by reference; to avoid creating a copy of
+// the thread object which can lead to undefined behaviour and bugs.
 double run_bench(
-    coyote::cThread &coyote_thread, coyote::rdmaSg &sg, 
-    int *mem, uint transfers, uint n_runs, bool operation
+    coyote::cThread &coyote_thread, coyote::rdmaSg &sg,
+    int *mem, uint transfers, uint n_runs, bool operation, BenchProgress &progress
 ) {
     // When writing, the server asserts the written payload is correct (which the client sets)
     // When reading, the client asserts the read payload is correct (which the server sets)
     for (int i = 0; i < sg.len / sizeof(int); i++) {
-        mem[i] = operation ? i : 0;         
+        mem[i] = operation ? i : 0;
     }
-    
-    // Before every benchmark, clear previous completion flags and sync with server
+
+    progress.size = sg.len;
+    progress.transfers = transfers;
+    progress.n_runs = n_runs;
+    uint32_t run_idx = 0;
+
+    // Before every benchmark, record the completion counters and sync with server
     // Sync is in a way equivalent to MPI_Barrier()
+    // The counters are not cleared, so the watchdog can compare their cumulative values with what was posted
     auto prep_fn = [&]() {
-        coyote_thread.clearCompleted();
+        progress.startRun(coyote_thread, run_idx++, transfers);
+        progress.phase = BenchPhase::SYNC;
         coyote_thread.connSync(IS_CLIENT);
     };
     
@@ -65,12 +73,16 @@ double run_bench(
      * In boths cases, that means there will be n_transfers completed writes to local memory (LOCAL_WRITE)
      */
     coyote::CoyoteOper coyote_operation = operation ? coyote::CoyoteOper::REMOTE_RDMA_WRITE : coyote::CoyoteOper::REMOTE_RDMA_READ;
-    auto bench_fn = [&]() {        
+    auto bench_fn = [&]() {
+        progress.phase = BenchPhase::INVOKE;
         for (int i = 0; i < transfers; i++) {
             coyote_thread.invoke(coyote_operation, sg);
+            progress.addInvoked();
         }
 
-        while (coyote_thread.checkCompleted(coyote::CoyoteOper::LOCAL_WRITE) != transfers) {}
+        progress.phase = BenchPhase::WAIT_LOCAL_WRITE;
+        uint32_t base = progress.base_local_wr;
+        while ((uint32_t) (coyote_thread.checkCompleted(coyote::CoyoteOper::LOCAL_WRITE) - base) != transfers) {}
     };
 
     // Execute benchmark
@@ -138,6 +150,11 @@ int main(int argc, char *argv[])  {
         }
     }
     if (!mem) { throw std::runtime_error("Could not allocate memory; exiting..."); }
+    std::cout << "Connected (ctid " << coyote_thread.getCtid() << ")" << std::endl << std::endl;
+
+    // Prints the state of the benchmark if it stops making progress; declared after the Coyote thread, so it stops first
+    BenchProgress progress;
+    StallWatchdog watchdog(coyote_thread, progress, "client");
 
     // Benchmark sweep of latency and throughput
     HEADER("RDMA BENCHMARK: CLIENT");
@@ -147,17 +164,19 @@ int main(int argc, char *argv[])  {
         
         coyote::rdmaSg sg = { .len = curr_size };
     
-        double throughput_time = run_bench(coyote_thread, sg, mem, N_THROUGHPUT_REPS, n_runs, operation);
+        double throughput_time = run_bench(coyote_thread, sg, mem, N_THROUGHPUT_REPS, n_runs, operation, progress);
         double throughput = ((double) N_THROUGHPUT_REPS * (double) curr_size) / (1024.0 * 1024.0 * throughput_time * 1e-9);
         std::cout << "Average throughput: " << std::setw(8) << throughput << " MB/s; ";
         
-        double latency_time = run_bench(coyote_thread, sg, mem, N_LATENCY_REPS, n_runs, operation);
+        double latency_time = run_bench(coyote_thread, sg, mem, N_LATENCY_REPS, n_runs, operation, progress);
         std::cout << "Average latency: " << std::setw(8) << latency_time / 1e3 << " us" << std::endl;
 
         curr_size *= 2;
     }
 
     // Final sync and exit
+    progress.phase = BenchPhase::SYNC;
     coyote_thread.connSync(IS_CLIENT);
+    progress.phase = BenchPhase::DONE;
     return EXIT_SUCCESS;
 }

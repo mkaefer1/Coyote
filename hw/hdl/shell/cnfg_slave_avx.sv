@@ -1076,7 +1076,47 @@ axis_data_fifo_req_256_used inst_cmd_queue (
   .axis_wr_data_count(local_queue_used)
 );
 
-// ---------------------------------------------------------------------------------------- 
+`ifdef EN_RDMA
+//
+// DEBUG (temporary): ILA on the command queue, to find where a host-posted RDMA WRITE is lost.
+// host_req.ready is not checked above, so a command written while the queue is full is dropped.
+// Triggers: dbg_cmd_overflow, or dbg_cmd_marker (a command of length DBG_MARKER_LEN, posted by the
+// example 9 watchdog on a stall). Capture condition: dbg_cmd_pid_hs (only commands of pid DBG_PID are stored).
+// The matching create_ip is in scripts/ip_inst/common_infrastructure.tcl.
+//
+localparam integer DBG_PID = 1;
+localparam integer DBG_MARKER_LEN = 4044;
+
+logic dbg_cmd_overflow;
+logic dbg_cmd_marker;
+logic dbg_cmd_pid_hs;
+
+assign dbg_cmd_overflow = host_req.valid & ~host_req.ready;
+assign dbg_cmd_marker = host_req.valid & host_req.ready & (host_req.data.req_2.len == DBG_MARKER_LEN);
+assign dbg_cmd_pid_hs =
+    (host_req.valid & host_req.ready & (host_req.data.req_2.pid == DBG_PID)) |
+    (m_host_sq.valid & m_host_sq.ready & (m_host_sq.data.req_2.pid == DBG_PID)) |
+    dbg_cmd_overflow;
+
+ila_dbg_cmd_queue inst_ila_dbg_cmd_queue (
+    .clk(aclk),
+    .probe0(host_req.valid),                                    // 1
+    .probe1(host_req.ready),                                    // 1
+    .probe2(dbg_cmd_overflow),                                  // 1
+    .probe3(8'(host_req.data.req_2.pid)),                       // 8
+    .probe4(8'(host_req.data.req_2.opcode)),                    // 8
+    .probe5(32'(host_req.data.req_2.len)),                      // 32
+    .probe6({host_req.data.req_1.actv, host_req.data.req_2.actv}), // 2
+    .probe7(local_queue_used[7:0]),                             // 8
+    .probe8(m_host_sq.valid),                                   // 1
+    .probe9(m_host_sq.ready),                                   // 1
+    .probe10(8'(m_host_sq.data.req_2.pid)),                     // 8
+    .probe11(dbg_cmd_pid_hs),                                   // 1
+    .probe12(dbg_cmd_marker)                                    // 1
+);
+`endif
+
+// ----------------------------------------------------------------------------------------
 // MEMORY
 // ----------------------------------------------------------------------------------------
 `ifdef EN_MEM

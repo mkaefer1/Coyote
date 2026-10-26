@@ -188,6 +188,29 @@ set_property -dict [list CONFIG.TDATA_NUM_BYTES {32} CONFIG.FIFO_DEPTH {32} CONF
 create_ip -name axis_data_fifo -vendor xilinx.com -library ip -version 2.0 -module_name axis_data_fifo_req_96
 set_property -dict [list CONFIG.TDATA_NUM_BYTES {12} CONFIG.FIFO_DEPTH {32} ] [get_ips axis_data_fifo_req_96]
 
+# DEBUG (temporary): ILAs for the lost RDMA WRITE investigation
+# ila_dbg_cmd_queue is instantiated in hw/hdl/shell/cnfg_slave_avx.sv (shell)
+# ila_dbg_rdma_wr_path is instantiated in hw/templates/common/user_wrapper_tmplt.txt (user wrapper)
+# Probe widths must match the instantiations
+if {$cfg(en_rdma) eq 1} {
+    create_ip -name ila -vendor xilinx.com -library ip -version 6.2 -module_name ila_dbg_cmd_queue
+    set_property -dict [list \
+        CONFIG.C_NUM_OF_PROBES {13} CONFIG.C_DATA_DEPTH {4096} CONFIG.C_INPUT_PIPE_STAGES {1} \
+        CONFIG.C_EN_STRG_QUAL {1} CONFIG.ALL_PROBE_SAME_MU_CNT {2} \
+        CONFIG.C_PROBE3_WIDTH {8} CONFIG.C_PROBE4_WIDTH {8} CONFIG.C_PROBE5_WIDTH {32} CONFIG.C_PROBE6_WIDTH {2} \
+        CONFIG.C_PROBE7_WIDTH {8} CONFIG.C_PROBE10_WIDTH {8} \
+    ] [get_ips ila_dbg_cmd_queue]
+
+    create_ip -name ila -vendor xilinx.com -library ip -version 6.2 -module_name ila_dbg_rdma_wr_path
+    set_property -dict [list \
+        CONFIG.C_NUM_OF_PROBES {28} CONFIG.C_DATA_DEPTH {4096} CONFIG.C_INPUT_PIPE_STAGES {1} \
+        CONFIG.C_EN_STRG_QUAL {1} CONFIG.ALL_PROBE_SAME_MU_CNT {2} \
+        CONFIG.C_PROBE2_WIDTH {8} CONFIG.C_PROBE3_WIDTH {8} CONFIG.C_PROBE4_WIDTH {32} \
+        CONFIG.C_PROBE11_WIDTH {8} CONFIG.C_PROBE12_WIDTH {8} CONFIG.C_PROBE13_WIDTH {8} CONFIG.C_PROBE14_WIDTH {32} CONFIG.C_PROBE15_WIDTH {2} \
+        CONFIG.C_PROBE18_WIDTH {8} CONFIG.C_PROBE19_WIDTH {8} CONFIG.C_PROBE20_WIDTH {32} \
+    ] [get_ips ila_dbg_rdma_wr_path]
+}
+
 create_ip -name axis_data_fifo -vendor xilinx.com -library ip -version 2.0 -module_name axis_data_fifo_req_128
 set_property -dict [list CONFIG.TDATA_NUM_BYTES {16} CONFIG.FIFO_DEPTH {32} ] [get_ips axis_data_fifo_req_128]
 
