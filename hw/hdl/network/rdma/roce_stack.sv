@@ -374,6 +374,12 @@ assign m_axis_dbg_0.ready = 1'b1;
 assign m_axis_dbg_1.ready = 1'b1;
 assign m_axis_dbg_2.ready = 1'b1;
 
+logic [31:0] cycle_cnt;
+always_ff @(posedge nclk) begin
+    if (!nresetn) cycle_cnt <= '0;
+    else cycle_cnt <= cycle_cnt + 1;
+end
+
 rocev2_ip rocev2_inst(
     .ap_clk(nclk), // input aclk
     .ap_rst_n(nresetn), // input aresetn
@@ -453,6 +459,7 @@ rocev2_ip rocev2_inst(
 
     // IP
     .local_ip_address({local_ip_address,local_ip_address,local_ip_address,local_ip_address}), //Use IPv4 addr
+    .cycle_cnt(cycle_cnt),
     
     // DBG
     .regIbvCountRx(ibv_rx_pkg_count_data),
@@ -546,6 +553,7 @@ rocev2_ip rocev2_inst(
 
     // IP
     .local_ip_address_V({local_ip_address,local_ip_address,local_ip_address,local_ip_address}), //Use IPv4 addr
+    .cycle_cnt_V(cycle_cnt),
 
     .regIbvCountRx_V(ibv_rx_pkg_count_data),
     .regIbvCountRx_V_ap_vld(ibv_rx_pkg_count_valid),
